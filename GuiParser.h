@@ -17,17 +17,19 @@ namespace Parser
 {
     enum class type
     {
-        button, textbox, image
+        button, textbox, image, group
     };
 
     enum class token
     {
-        position, size, name, text, path
+        position, size, name, text, path, array
     };
+
     struct parseObject
     {
         type t;
-      std::map<token, std::any> values;
+        bool usedInGroup = false;
+        std::map<token, std::any> values;
     };
 
     class GuiParser
@@ -36,7 +38,7 @@ namespace Parser
         static std::map<std::string, type> Types;
         static std::map<std::string, token> Tokens;
 
-        std::vector<parseObject> tokenize;
+        std::vector<parseObject*> tokenizeFile;
         tgui::Gui* g;
         std::string path;
 
@@ -60,10 +62,14 @@ namespace Parser
             }
         }
 
+        tgui::Button::Ptr ButtonCreate(parseObject&);
+        tgui::TextBox::Ptr TextBoxCreate(parseObject&);
+        tgui::Picture::Ptr PictureCreate(parseObject&);
+        tgui::Group::Ptr GroupCreate(parseObject& elem);
     public:
         GuiParser(std::string_view, tgui::Gui&);
 
-        void parse();
+        void tokenize();
 
         void createGui(tgui::Gui& g);
 

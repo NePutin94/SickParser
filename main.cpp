@@ -10,10 +10,10 @@ using namespace Engine;
 
 int main()
 {
-    sf::RenderWindow window{{800, 600}, "Window"};
+    sf::RenderWindow window{{1400, 900}, "example"};
     tgui::Gui gui{window}; // Create the gui and attach it to the window
     Parser::GuiParser p("test.txt", gui);
-    p.parse();
+    p.tokenize();
     p.createGui(gui);
     //sf::Texture t;
     //t.loadFromFile("D:\\!VisualStudioProject\\SfmlProject\\SFMLEngine\\Release\\Data\\images\\logoz.png");
