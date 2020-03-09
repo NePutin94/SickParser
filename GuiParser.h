@@ -17,19 +17,81 @@ namespace Parser
 {
     enum class type
     {
-        button, textbox, image, group
+        button = 0, textbox, image, group, theme
     };
 
     enum class token
     {
-        position, size, name, text, path, array
+        position = 0, size, name, text, path, array, visible, undefined
     };
+
+    constexpr std::string_view tokenString[] =
+            {
+                    "position",
+                    "size",
+                    "name",
+                    "text",
+                    "path",
+                    "array",
+                    "visible",
+                    "undefined"
+            };
+    constexpr std::string_view typeString[] =
+            {
+                    "button",
+                    "theme",
+                    "textbox",
+                    "image",
+                    "group"
+            };
+
+    inline const char* typeToStr(type t) noexcept
+    {
+        return typeString[(int) t].data();
+    }
+
+    inline const char* tokenToStr(token t) noexcept
+    {
+        return tokenString[(int) t].data();
+    }
 
     struct parseObject
     {
         type t;
         bool usedInGroup = false;
         std::map<token, std::any> values;
+    };
+
+    class TokenParseException : public std::exception
+    {
+    private:
+        const char* typ;
+        const char* tok;
+        std::string expr;
+    public:
+        TokenParseException() = delete;
+
+        explicit TokenParseException(type typ, token tok, std::string_view ex) : typ(typeToStr(typ)), tok(tokenToStr(tok)), expr(ex)
+        {}
+
+        [[nodiscard]] const char* what() const noexcept override
+        {
+            return "Token Parse Error: ";
+        }
+
+        [[nodiscard]] const char* getType() const noexcept
+        {
+            return typ;
+        }
+
+        [[nodiscard]] const char* getToken() const noexcept
+        {
+            return tok;
+        }
+        [[nodiscard]] const char* getExpression() const
+        {
+            return expr.c_str();
+        }
     };
 
     class GuiParser
@@ -39,7 +101,6 @@ namespace Parser
         static std::map<std::string, token> Tokens;
 
         std::vector<parseObject*> tokenizeFile;
-        tgui::Gui* g;
         std::string path;
 
         template<class T>
@@ -58,16 +119,23 @@ namespace Parser
                     case token::name:
                         obj->setWidgetName(std::any_cast<std::string>(v.second));
                         break;
+                    case token::visible:
+                        obj->setVisible(std::any_cast<bool>(v.second));
+                        break;
                 }
             }
         }
 
         tgui::Button::Ptr ButtonCreate(parseObject&);
+
         tgui::TextBox::Ptr TextBoxCreate(parseObject&);
+
         tgui::Picture::Ptr PictureCreate(parseObject&);
+
         tgui::Group::Ptr GroupCreate(parseObject& elem);
+
     public:
-        GuiParser(std::string_view, tgui::Gui&);
+        GuiParser(std::string_view);
 
         void tokenize();
 
@@ -75,5 +143,6 @@ namespace Parser
 
         void typesParse(const std::string&);
     };
+
 }
 #endif //TGUILUA_GUIPARSER_H

@@ -9,16 +9,21 @@ using namespace Parser;
 std::map<std::string, type> Parser::GuiParser::Types = {{"button",  type::button},
                                                         {"textbox", type::textbox},
                                                         {"image",   type::image},
-                                                        {"group",   type::group}};
+                                                        {"group",   type::group},
+                                                        {"theme",   type::theme}};
 std::map<std::string, token> Parser::GuiParser::Tokens = {{"position", token::position},
                                                           {"name",     token::name},
                                                           {"text",     token::text},
                                                           {"size",     token::size},
                                                           {"path",     token::path},
+                                                          {"visible",  token::visible},
                                                           {"array",    token::array}};
 
-Parser::GuiParser::GuiParser(std::string_view p, tgui::Gui& gui) : path(p)
-{}
+
+Parser::GuiParser::GuiParser(std::string_view p) : path(p)
+{
+
+}
 
 void GuiParser::tokenize()
 {
@@ -26,31 +31,57 @@ void GuiParser::tokenize()
     i.open(path);
     std::string buffer;
     std::string prevBuffer;
-    while(std::getline(i, buffer))
+    size_t line = 1;
+    try
     {
-        if(size_t n = std::count(buffer.begin(), buffer.end(), ';'); n != 0)
+        while(std::getline(i, buffer))
         {
-            if(!prevBuffer.empty())
-                buffer.insert(0, prevBuffer);
-            prevBuffer.clear();
-            size_t current_expr_e = buffer.find_first_of(';');
-            typesParse(buffer.substr(0, current_expr_e));
-            --n;
-            while(n > 0)
+            if(size_t n = std::count(buffer.begin(), buffer.end(), ';'); n != 0)
             {
-                size_t next_expr_s = current_expr_e + 1;
-                size_t next_expr_e = buffer.find_first_of(';', next_expr_s);
-                typesParse(buffer.substr(next_expr_s, next_expr_e - next_expr_s));
-                current_expr_e = next_expr_e;
+                if(!prevBuffer.empty())
+                    buffer.insert(0, prevBuffer);
+                prevBuffer.clear();
+                size_t current_expr_e = buffer.find_first_of(';');
+                typesParse(buffer.substr(0, current_expr_e));
                 --n;
+                while(n > 0)
+                {
+                    size_t next_expr_s = current_expr_e + 1;
+                    size_t next_expr_e = buffer.find_first_of(';', next_expr_s);
+                    typesParse(buffer.substr(next_expr_s, next_expr_e - next_expr_s));
+                    current_expr_e = next_expr_e;
+                    --n;
+                }
+                if(buffer.find_last_of(';') + 1 < buffer.length())
+                    prevBuffer = buffer.substr(current_expr_e + 1, buffer.length() - current_expr_e - 1);
+            } else
+            {
+                prevBuffer = buffer;
+                continue;
             }
-            if(buffer.find_last_of(';') + 1 < buffer.length())
-                prevBuffer = buffer.substr(current_expr_e + 1, buffer.length() - current_expr_e - 1);
-        } else
-        {
-            prevBuffer = buffer;
-            continue;
+            ++line;
         }
+    }
+    catch (TokenParseException& p)
+    {
+        tokenizeFile.clear();
+        std::cout << "[line " + std::to_string(line) + "] " + p.what() + p.getToken() +
+                     " token cannot be obtained for the " + p.getType() +
+                     " type, expression \"" + p.getExpression() + "\"";
+    }
+    catch (std::invalid_argument& p)
+    {
+        tokenizeFile.clear();
+        std::cout << p.what();
+    }
+    catch (std::out_of_range& p)
+    {
+        tokenizeFile.clear();
+        std::cout << p.what();
+    }
+    catch (...)
+    {
+        tokenizeFile.clear();
     }
     i.close();
 }
@@ -63,7 +94,7 @@ void GuiParser::typesParse(const std::string& buffer)
     if(auto it1 = Types.find(type_str); it1 != Types.end())
     {
         type expr_type = it1->second;
-        parseObject* con = new parseObject();
+        auto* con = new parseObject();
         con->t = expr_type;
         size_t tokens_start = buffer.find_first_not_of(':', type_end + 1);
         size_t tokens_end = buffer.length();
@@ -71,93 +102,103 @@ void GuiParser::typesParse(const std::string& buffer)
         size_t curr_param_start = 0;
         size_t curr_param_end = params_str.find_first_of('}', curr_param_start);
         auto lg = params_str.length();
-        while(curr_param_end <= params_str.length())
+        try
         {
-            auto curr_param = params_str.substr(curr_param_start, curr_param_end - curr_param_start + 1);
-            size_t curr_param_value_s = curr_param.find_first_of('{');
-            size_t curr_param_value_e = curr_param.find_first_of('}');
-            auto curr_param_value = curr_param.substr(curr_param_value_s, curr_param_value_e - curr_param_value_s + 1);
-            size_t curr_param_token_s = curr_param.find_first_not_of(' ');
-            auto curr_param_token_n = curr_param.substr(curr_param_token_s, curr_param_value_s - curr_param_token_s);
-            if(auto it = Tokens.find(curr_param_token_n); it != Tokens.end())
+            while(curr_param_end <= params_str.length())
             {
-                token param_type = it->second;
-                switch(param_type)
+                auto curr_param = params_str.substr(curr_param_start, curr_param_end - curr_param_start + 1);
+                size_t curr_param_value_s = curr_param.find_first_of('{');
+                size_t curr_param_value_e = curr_param.find_first_of('}');
+                auto curr_param_value = curr_param.substr(curr_param_value_s, curr_param_value_e - curr_param_value_s + 1);
+                size_t curr_param_token_s = curr_param.find_first_not_of(' ');
+                auto curr_param_token_n = curr_param.substr(curr_param_token_s, curr_param_value_s - curr_param_token_s);
+                if(auto it = Tokens.find(curr_param_token_n); it != Tokens.end())
                 {
-                    case token::position:
+                    token param_type = it->second;
+                    switch(param_type)
                     {
-                        size_t middle = curr_param_value.find_first_of(',');
-                        float x = stof(curr_param_value.substr(1, middle));
-                        float y = stof(curr_param_value.substr(middle + 1, curr_param_value.length() - middle - 1));
-                        std::cout << curr_param.substr(0, curr_param_value_s) + " received with arguments: " + "X = " +
-                                     std::to_string(x) + "Y = " + std::to_string(y) + "\n";
-                        con->values.emplace(param_type, std::any{sf::Vector2f{x, y}});
-                    }
-                        break;
-                    case token::size:
-                    {
-                        size_t middle = curr_param_value.find_first_of(',');
-                        float x = stof(curr_param_value.substr(1, middle));
-                        float y = stof(curr_param_value.substr(middle + 1, curr_param_value.length() - middle - 1));
-                        std::cout << curr_param.substr(0, curr_param_value_s) + " received with arguments: " + "X = " +
-                                     std::to_string(x) + "Y = " + std::to_string(y) + "\n";\
-                             con->values.emplace(param_type, std::any{sf::Vector2f{x, y}});
-                    }
-                        break;
-                    case token::name:
-//                        con.values.emplace(param_type, std::any{curr_param_value.substr(curr_param_value.find_first_of('\"') + 1,
-//                                                                                        curr_param_value.find_last_of('\"') - 2)});
-//                        break;
-                    case token::text:
-//                        con.values.emplace(param_type, std::any{curr_param_value.substr(curr_param_value.find_first_of('\"') + 1,
-//                                                                                        curr_param_value.find_last_of('\"') - 2)});
-//                        break;
-                    case token::path:
-                        con->values.emplace(param_type, std::any{curr_param_value.substr(curr_param_value.find_first_of('\"') + 1,
-                                                                                        curr_param_value.find_last_of('\"') - 2)});
-                        break;
-                    case token::array:
-                    {
-                        auto elem_count = std::count(curr_param_value.begin(), curr_param_value.end(), ',') + 1;
-                        if(elem_count == 0)
+                        case token::position: // number parse
+                        case token::size:
+                        {
+                            size_t middle = curr_param_value.find_first_of(',');
+                            float x = stof(curr_param_value.substr(1, middle));
+                            float y = stof(curr_param_value.substr(middle + 1, curr_param_value.length() - middle - 1));
+                            con->values.emplace(param_type, std::any{sf::Vector2f{x, y}});
+                        }
                             break;
-                        auto array_elem_start = curr_param_value.find_first_of('\"') + 1;
-                        auto array_elem_end = curr_param_value.find_first_of('\"', array_elem_start) - 1;
-                        std::vector<std::string> names;
-                        while(elem_count > 0)
+                        case token::name: // srting parse
+                        case token::text:
+                        case token::path:
                         {
-                            names.push_back(curr_param_value.substr(array_elem_start, array_elem_end - array_elem_start + 1));
-                            array_elem_start = curr_param_value.find_first_of('\"', array_elem_end + 2) + 1;
-                            array_elem_end = curr_param_value.find_first_of('\"', array_elem_start + 1) - 1;
-                            --elem_count;
+                            auto str = curr_param_value.substr(curr_param_value.find_first_of('\"') + 1,
+                                                               (curr_param_value.find_last_of('\"') -
+                                                                curr_param_value.find_first_of('\"'))
+                                                               - 1);
+                            con->values.emplace(param_type, std::any{str});
                         }
-                        std::vector<parseObject*> pointers;
-                        for(auto& n : names)
+                            break;
+                        case token::visible: //boolean parse
                         {
-                            auto f = std::find_if(tokenizeFile.begin(), tokenizeFile.end(), [n](parseObject* t)
-                            {
-                                return std::any_cast<std::string>(t->values[token::name]) == n;
-                            });
-                            if(f == tokenizeFile.end())
-                                std::cout << "[Error]: group_array_value cannot be found or is not defined, value:  " + n + "\n";
+                            auto str = curr_param_value.substr(1, (curr_param_value.length() - 1) - 1);
+                            bool value;
+                            if(str.find("true") != std::string::npos)
+                                value = true;
+                            else if(str.find("false") != std::string::npos)
+                                value = false;
                             else
-                            {
-                                (*f)->usedInGroup = true;
-                                pointers.push_back(*f);
-                            }
+                                throw TokenParseException(expr_type, param_type, str.c_str());
+                            con->values.emplace(param_type, std::any{value});
                         }
-                        con->values.emplace(param_type, std::any{pointers});
+                            break;
+                        case token::array: // string array parse
+                        {
+                            auto elem_count = std::count(curr_param_value.begin(), curr_param_value.end(), ',') + 1;
+                            if(elem_count == 0)
+                                break;
+                            auto array_elem_start = curr_param_value.find_first_of('\"') + 1;
+                            auto array_elem_end = curr_param_value.find_first_of('\"', array_elem_start) - 1;
+                            std::vector<std::string> names;
+                            while(elem_count > 0)
+                            {
+                                names.push_back(curr_param_value.substr(array_elem_start, array_elem_end - array_elem_start + 1));
+                                array_elem_start = curr_param_value.find_first_of('\"', array_elem_end + 2) + 1;
+                                array_elem_end = curr_param_value.find_first_of('\"', array_elem_start + 1) - 1;
+                                --elem_count;
+                            }
+                            std::vector<parseObject*> pointers;
+                            for(auto& n : names)
+                            {
+                                auto f = std::find_if(tokenizeFile.begin(), tokenizeFile.end(), [n](parseObject* t)
+                                {
+                                    return (t->values.count(token::name)) ? std::any_cast<std::string>(t->values[token::name]) == n : false;
+                                });
+                                if(f == tokenizeFile.end())
+                                    throw TokenParseException(expr_type, param_type, n.c_str());
+                                    //std::cout << "[Error]: group_array_value cannot be found or is not defined, value:  " + n + "\n";
+                                else
+                                {
+                                    (*f)->usedInGroup = true;
+                                    pointers.push_back(*f);
+                                }
+                            }
+                            con->values.emplace(param_type, std::any{pointers});
+                        }
+                            break;
                     }
-                        break;
-                }
-            } else
-                std::cout << "[Error]: param_name set incorrectly for " + curr_param + "\n";
-            curr_param_start = params_str.find_first_of(',', curr_param_end);
-            if(curr_param_start == std::string::npos)
-                break;
-            else
-                ++curr_param_start;
-            curr_param_end = params_str.find_first_of('}', curr_param_start);
+                } else
+                    throw TokenParseException(expr_type, token::undefined, curr_param_token_n);
+                curr_param_start = params_str.find_first_of(',', curr_param_end);
+                if(curr_param_start == std::string::npos)
+                    break;
+                else
+                    ++curr_param_start;
+                curr_param_end = params_str.find_first_of('}', curr_param_start);
+            }
+        }
+        catch (...)
+        {
+            delete con;
+            throw;
         }
         tokenizeFile.emplace_back(con);
     } else
@@ -166,6 +207,15 @@ void GuiParser::typesParse(const std::string& buffer)
 
 void GuiParser::createGui(tgui::Gui& gui)
 {
+    auto f = std::find_if(tokenizeFile.begin(), tokenizeFile.end(), [](parseObject* obj)
+    {
+        return obj->t == type::theme;
+    });
+    tgui::Theme theme{};
+    tgui::Theme::setDefault(&theme);
+    if(f != tokenizeFile.end())
+        theme.load(std::any_cast<std::string>((*f)->values[token::path]));
+
     for(auto& elem : tokenizeFile)
     {
         switch(elem->t)
