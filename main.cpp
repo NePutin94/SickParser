@@ -11,8 +11,8 @@ using namespace Engine;
 int main()
 {
     sf::RenderWindow window{{1400, 900}, "example"};
-    tgui::Gui gui{window}; // Create the gui and attach it to the window
-    Parser::GuiParser p("test.txt", gui);
+    tgui::Gui gui(window); // Create the gui and attach it to the window
+    Parser::GuiParser p("test.txt");
     p.tokenize();
     p.createGui(gui);
     //sf::Texture t;

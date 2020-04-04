@@ -17,12 +17,12 @@ namespace Parser
 {
     enum class type
     {
-        button = 0, textbox, image, group, theme
+        button = 0, textbox, image, group, global_param
     };
 
     enum class token
     {
-        position = 0, size, name, text, path, array, visible, undefined
+        position = 0, size, name, text, path, array, visible, theme, undefined
     };
 
     constexpr std::string_view tokenString[] =
@@ -34,15 +34,16 @@ namespace Parser
                     "path",
                     "array",
                     "visible",
-                    "undefined"
+                    "undefined",
+                    "theme"
             };
     constexpr std::string_view typeString[] =
             {
-                    "button",
-                    "theme",
-                    "textbox",
-                    "image",
-                    "group"
+                    "Button",
+                    "TextBox",
+                    "Image",
+                    "Group",
+                    "global_param"
             };
 
     inline const char* typeToStr(type t) noexcept
@@ -60,6 +61,21 @@ namespace Parser
         type t;
         bool usedInGroup = false;
         std::map<token, std::any> values;
+    };
+
+    struct glob_param
+    {
+        token to;
+        type tp;
+        std::any value;
+
+        glob_param(parseObject& obj)
+        {
+            tp = obj.t;
+            auto iter = obj.values.begin();
+            to = iter->first;
+            value = iter->second;
+        }
     };
 
     class TokenParseException : public std::exception
@@ -88,6 +104,7 @@ namespace Parser
         {
             return tok;
         }
+
         [[nodiscard]] const char* getExpression() const
         {
             return expr.c_str();
@@ -101,6 +118,7 @@ namespace Parser
         static std::map<std::string, token> Tokens;
 
         std::vector<parseObject*> tokenizeFile;
+        std::vector<glob_param> glob_params;
         std::string path;
 
         template<class T>
@@ -122,6 +140,38 @@ namespace Parser
                     case token::visible:
                         obj->setVisible(std::any_cast<bool>(v.second));
                         break;
+                    case token::theme:
+                        if(!(typ == type::group || typ == type::image))
+                        {
+                            tgui::Theme t{std::any_cast<std::string>(v.second)};
+                            obj->setRenderer(t.getRenderer(typeToStr(typ)));
+                        }
+                        break;
+                }
+            }
+            for(auto& v : glob_params)
+            {
+                switch(v.to)
+                {
+                    case token::position:
+                        obj->setPosition(std::any_cast<sf::Vector2f>(v.value));
+                        break;
+                    case token::size:
+                        obj->setSize(std::any_cast<sf::Vector2f>(v.value));
+                        break;
+                    case token::name:
+                        obj->setWidgetName(std::any_cast<std::string>(v.value));
+                        break;
+                    case token::visible:
+                        obj->setVisible(std::any_cast<bool>(v.value));
+                        break;
+                    case token::theme:
+                        if(!(typ == type::group || typ == type::image))
+                        {
+                            tgui::Theme t{std::any_cast<std::string>(v.value)};
+                            obj->setRenderer(t.getRenderer(typeToStr(typ)));
+                        }
+                        break;
                 }
             }
         }
@@ -133,6 +183,8 @@ namespace Parser
         tgui::Picture::Ptr PictureCreate(parseObject&);
 
         tgui::Group::Ptr GroupCreate(parseObject& elem);
+
+        void param_parse(size_t curr_param_start, size_t curr_param_end, std::string params_str, type expr_type, parseObject*);
 
     public:
         GuiParser(std::string_view);

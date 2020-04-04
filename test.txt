@@ -1,0 +1,11 @@
+#size{120,120};
+[button]: position{0,0},  name{"test2"}, size{150,110}, text{"Button"};
+[image]: size{120,290}, position{200,70}, name{"picture"},
+path{"D:\\!VisualStudioProject\\DeterringGruzin\\Debug\\Data\\Gruzin.png"};
+
+#theme{"D:\\ClionProject\\TguiLua\\cmake-build-debug\\themes\\Black.txt"};
+[textbox]: name{"textbox"}, position{800,420},   text{"Text Box"}, size{200, 160};
+[button]: name{"test"}, position{380.6,120},   text{"Button Button"}, size{200, 160};
+
+#theme{"D:\\ClionProject\\TguiLua\\cmake-build-debug\\themes\\TransparentGrey.txt"};
+[group]: array{"test", "picture", "test2"}, name{"group1"}, position{120,120};
